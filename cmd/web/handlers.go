@@ -10,40 +10,23 @@ import (
 )
 
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		app.notFound(w)
-		return
-	}
 	s, err := app.snippets.Latest()
 	if err != nil {
 		app.serverError(w, err)
 		return
 	}
-	for _, snippet := range s {
-		fmt.Fprintf(w, "%v\n", snippet)
-	}
-	// files := []string{
-	// // //
-	// }
-	// ts,
-	// if err != nil {
-	// app.serverError(w, err)
-	// return
-	// }
-	// err = ts.Execute(w, nil)
-	// if err != nil {
-	// app.serverError(w, err)
-	// }
+	app.render(w, r, "home.page.tmpl", &templateData{
+		Snippets: s,
+	})
 }
 
 func (app *application) showSnippet(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(r.URL.Query().Get("id"))
+	// Pat doesn't strip the colon from the named capture key, so we need to // get the value of ":id" from the query string instead of "id".
+	id, err := strconv.Atoi(r.URL.Query().Get(":id"))
 	if err != nil || id < 1 {
 		app.notFound(w)
 		return
 	}
-	// Use the SnippetModel object's Get method to retrieve the data for a // specific record based on its ID. If no matching record is found,
-	// return a 404 Not Found response.
 	s, err := app.snippets.Get(id)
 	if err != nil {
 		if errors.Is(err, models.ErrNoRecord) {
@@ -53,14 +36,23 @@ func (app *application) showSnippet(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	// Write the snippet data as a plain-text HTTP response body.
-	fmt.Fprintf(w, "%v", s)
+	app.render(w, r, "show.page.tmpl", &templateData{Snippet: s})
+}
+
+func (app *application) createSnippetForm(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("Create a new snippet..."))
 }
 
 func (app *application) createSnippet(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", http.MethodPost)
-		app.clientError(w, http.StatusMethodNotAllowed) // Use the clientError() helper. return
+	// Checking if the request method is a POST is now superfluous and can be // removed.
+	title := "O snail"
+	content := "O snail\nClimb Mount Fuji,\nBut slowly, slowly!\n\n– Kobayashi Issa"
+	expires := "7"
+	id, err := app.snippets.Insert(title, content, expires)
+	if err != nil {
+		app.serverError(w, err)
+		return
 	}
-	w.Write([]byte("Create a new snippet..."))
+	// Change the redirect to use the new semantic URL style of /snippet/:id
+	http.Redirect(w, r, fmt.Sprintf("/snippet/%d", id), http.StatusSeeOther)
 }
